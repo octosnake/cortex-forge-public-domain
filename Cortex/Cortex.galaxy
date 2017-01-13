@@ -47,11 +47,6 @@ bool libcrtx_MapCheck()
 		libcrtx_write(PlayerGroupAll(), "Incorrect hostile player settings.");
 		r = false;
 	}
-
-	if( PlayerType(libcrtx_setting_getint(libcrtx_setting_int_smarthostile)) != c_playerTypeComputer ) {
-		libcrtx_write(PlayerGroupAll(), "Incorrect smarthostile player settings.");
-		r = false;
-	}
 	
 	if( !r ) {
 		libcrtx_write(PlayerGroupAll(), "One or more errors detected. Cortex has failed to startup.");
