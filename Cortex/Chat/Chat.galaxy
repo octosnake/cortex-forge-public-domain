@@ -35,7 +35,7 @@ bool libcrtx_alias_exists(string aliasName)
 	return true;
 }
 
-// lists all aliases in comma and space-deliminted format
+// lists all aliases in comma and space-delimited format
 string libcrtx_alias_list()
 {
 	int count;
@@ -60,7 +60,11 @@ string libcrtx_alias_list()
 
 	return rvalue;
 }
-// lists all aliases in alphabetized comma and space-deliminted format
+
+// Oh no. Why is this still in here? This thing I wrote does not work, and brings
+// shame to its family. Do not use it. - Snivs
+//
+// lists all aliases in alphabetized comma and space-delimited format
 string libcrtx_alias_list_alphabetized()
 {
 	int count;
@@ -78,7 +82,7 @@ string libcrtx_alias_list_alphabetized()
 		current = BankKeyName( libcrtx_alias_banks[EventPlayer()], "aliases", count-1 );
 		rvalue = rvalue + current;
 		
-		if( count != 1 ) { // No commas until after alphabatizing
+		if( count != 1 ) { // No commas until after alphabetizing
 			rvalue = rvalue + " ";
 		}
 
@@ -120,6 +124,7 @@ string libcrtx_alias_list_alphabetized()
 	
 	return rvalue;
 }
+
 void libcrtx_alias_destroyall()
 {
 	BankSectionRemove( libcrtx_alias_banks[EventPlayer()], "aliases" );
