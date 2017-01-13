@@ -1,0 +1,40 @@
+// Cortex SC2 Roleplaying Engine
+// Copyright (C) 2009-2011 <http://www.cortexrp.com/>
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; version 2 of the License.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+struct SpawnCommandInstance
+{
+	string unitType;
+	int count;
+	int player;
+	region loc;
+};
+
+SpawnCommandInstance[libcrtx_max_players] libcrtx_command_spawn_instances;
+int[libcrtx_max_players] libcrtx_command_spawn_lastevent;
+fixed[libcrtx_max_players] libcrtx_command_spawn_frozenuntil;
+int[libcrtx_max_players] libcrtx_command_spawn_count;
+
+int libcrtx_command_chat_guid_counter = 1;
+int libcrtx_region_guid_counter = 1;
+
+bank[libcrtx_max_players] libcrtx_player_banks;
+
+int[libcrtx_max_players] libcrtx_waygate_dialog;
+int[libcrtx_max_players] libcrtx_waygate_dialogcontrol;
+
+string libcrtx_command_region_buildidentifier(string name) {
+	return StringCase("regions_" + IntToString(EventPlayer()) + "_" + name, false);
+}
+
+point[libcrtx_max_players] libcrtx_mouse_positions;
+
+bool libcrtx_secure_mode = true;

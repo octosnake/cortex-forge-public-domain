@@ -1,0 +1,56 @@
+// Cortex SC2 Roleplaying Engine
+// Copyright (C) 2009-2011 <http://www.cortexrp.com/>
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; version 2 of the License.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+include "TriggerLibs/Computer"
+
+static bool libcrtx_ai_enabled = false;
+static bool libcrtx_ai_setup = false;
+static bool libcrtx_ai_maintownsetup = false;
+
+const int libcrtx_race_zerg = 0;
+const int libcrtx_race_protoss = 1;
+const int libcrtx_race_terran = 2;
+
+void libcrtx_ai_update();
+
+int libcrtx_ai_race = 0;
+void libcrtx_ai_set_race(int race)
+{
+	libcrtx_ai_race = race;
+	//libcrtx_ai_update();
+}
+
+bool libcrtx_ai_is_enabled()
+{
+	return true;
+}
+
+
+void libcrtx_ai_start()
+{
+
+}
+
+void libcrtx_ai_createtown(point p, bool makeCapital)
+{
+
+}
+
+void libcrtx_ai_update()
+{
+
+}
+
+void libcrtx_ai_stop()
+{
+	libcrtx_ai_enabled = false;
+}

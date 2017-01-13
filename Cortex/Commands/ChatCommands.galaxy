@@ -1,0 +1,174 @@
+// Cortex SC2 Roleplaying Engine
+// Copyright (C) 2009-2011 <http://www.cortexrp.com/>
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; version 2 of the License.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+void libcrtx_assign_name_to_unit(unit u, string name)
+{
+	bank b;
+	UnitSetCustomValue(u, libcrtx_unit_custom_value_guid, IntToFixed(libcrtx_command_chat_guid_counter));
+	b = libcrtx_player_banks[EventPlayer()];
+	if( b == null )
+	{
+		// create a new bank!
+		b = BankLoad(libcrtx_bank_prefix + "chatsystem", EventPlayer());
+		libcrtx_player_banks[EventPlayer()] = b;
+	}
+
+	BankValueSetFromString(b, "chat", IntToString( libcrtx_command_chat_guid_counter ), name );
+	libcrtx_command_chat_guid_counter = libcrtx_command_chat_guid_counter + 1;
+}
+
+// Sadly, the return type must be text because blizzard has no TextToString() wtf?
+text libcrtx_get_name_from_unit(unit u)
+{
+	string s;
+	bank b = libcrtx_player_banks[EventPlayer()];
+	if( b == null )
+	{
+		s = CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(u), "Name", UnitGetOwner(u));
+		if( StringSub(s, 1, 10) == "Unit/Name/" ) {
+			//libcrtx_write_success("FAILED TO LOAD BANK: RETURNING UNIT/NAME/");
+			return StringExternal(s);
+		}
+	}
+
+	// Convert to int, then to string so we don't end up with "832.00" which isn't the same as "832" in a string.
+	s = BankValueGetAsString( b, "chat", IntToString(FixedToInt( UnitGetCustomValue(u, libcrtx_unit_custom_value_guid)) ) );
+	if( s == "" ) // no name.
+	{
+		// Perform catalog lookup
+		s = CatalogFieldValueGet(c_gameCatalogUnit, UnitGetType(u), "Name", UnitGetOwner(u));
+		if( StringSub(s, 1, 10) == "Unit/Name/" ) {
+			//libcrtx_write_success("FAILED TO FIND BANK STRING: RETURNING UNIT/NAME/");
+			return StringExternal(s);
+		}
+	}
+
+	//libcrtx_write_success(IntToString(FixedToInt( UnitGetCustomValue(u, libcrtx_unit_custom_value_guid))) + " : " + s);
+	
+	return StringToText(s);
+}
+
+// returns -1 if the name is default. else, returns length of name
+int libcrtx_get_unit_name_length(unit u)
+{
+	string s;
+	bank b = libcrtx_player_banks[EventPlayer()];
+	if( b == null )
+	{
+		return -1;
+	}
+
+	// Convert to int, then to string so we don't end up with "832.00" which isn't the same as "832" in a string.
+	s = BankValueGetAsString( b, "chat", IntToString(FixedToInt( UnitGetCustomValue(u, libcrtx_unit_custom_value_guid)) ) );
+	if( s == "" ) // no name.
+	{
+		return -1;
+	}
+	
+	return StringLength(s);
+}
+
+bool libcrtx_command_say(bool checkConds, bool runActions)
+{
+	string s;
+	unit u;
+	text unitName;
+	text msg;
+	unitgroup g = libcrtx_chat_get_context(EventPlayer());
+	
+	UnitGroupLoopBegin(g);
+	while(!UnitGroupLoopDone())
+	{
+		u = UnitGroupLoopCurrent();
+		unitName = libcrtx_color_text_by_player( EventPlayer(), libcrtx_get_name_from_unit(u));
+
+		s = libcrtx_chat_get_parse_line(EventPlayer());
+		s = StringSub( s, StringFind(s, " ", c_stringCase)+1, StringLength(s)); // The remainder of the chat message.
+		s = ": " + s;
+		msg = unitName + StringToText(s);
+		
+		libcrtx_write_text(PlayerGroupAll(), msg);
+		libcrtx_ui_chatlog_add_msg(EventPlayer(), s, unitName, libcrtx_get_unit_name_length(u));
+		
+		UnitGroupLoopStep();
+	}
+	UnitGroupLoopEnd();
+
+
+	return true;
+}
+
+bool libcrtx_command_sayoverhead(bool checkConds, bool runActions)
+{
+	int t;
+	string s;
+	unit u;
+	text unitName;
+	text misc;
+	unitgroup g = libcrtx_chat_get_context(EventPlayer());
+	UnitGroupLoopBegin(g);
+	while(!UnitGroupLoopDone())
+	{
+		u = UnitGroupLoopCurrent();
+		
+		s = libcrtx_chat_get_parse_line(EventPlayer());
+		s = StringSub( s, StringFind(s, " ", c_stringCase)+1, StringLength(s)); // The remainder of the chat message.
+		misc = libcrtx_color_text_by_player(EventPlayer(), StringToText(s));
+
+		if( UnitGetCustomValue( UnitGroupLoopCurrent(), libcrtx_unit_custom_value_texttag ) != 0.0 ) {
+			TextTagShow(  FixedToInt(UnitGetCustomValue( UnitGroupLoopCurrent(), libcrtx_unit_custom_value_texttag )), PlayerGroupAll(), false );
+		}
+		
+		t = TextTagCreate( misc, 22, UnitGetPosition( UnitGroupLoopCurrent() ), 2.0 + UnitGetHeight(UnitGroupLoopCurrent()), true, true, PlayerGroupAll() );
+		TextTagAttachToUnit( t, UnitGroupLoopCurrent(), 2.0 + UnitGetHeight(UnitGroupLoopCurrent()));
+		TextTagSetTime( t, c_textTagTimeDuration, 24 );
+		TextTagShow( t, PlayerGroupAll(), true );
+		
+		UnitSetCustomValue( UnitGroupLoopCurrent(), libcrtx_unit_custom_value_texttag, IntToFixed(t) );
+
+		UnitGroupLoopStep();
+	}
+	UnitGroupLoopEnd();
+
+
+	return true;
+}
+
+
+bool libcrtx_command_setname(bool checkConds, bool runActions)
+{
+	string s;
+	unit u;
+	unitgroup g;
+
+	s = libcrtx_chat_get_parse_line(EventPlayer());
+	s = StringSub( s, StringFind(s, " ", c_stringCase)+1, StringLength(s)); // The remainder of the chat message.	
+	if( s == "" ) { // don't want people with null names hiding their chat color.
+		return true;
+	}
+	
+	g = libcrtx_chat_get_context(EventPlayer());
+	UnitGroupLoopBegin(g);
+	while(!UnitGroupLoopDone())
+	{
+		u = UnitGroupLoopCurrent();
+
+		libcrtx_assign_name_to_unit(u, s);
+		libcrtx_unitCache_update(UnitGroupLoopCurrent(), "@setname", libcrtx_chat_get_parse_line(EventPlayer()));
+		
+		UnitGroupLoopStep();
+	}
+	UnitGroupLoopEnd();
+
+
+	return true;
+}

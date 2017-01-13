@@ -1,0 +1,710 @@
+// Cortex SC2 Roleplaying Engine
+// Copyright (C) 2009-2011 <http://www.cortexrp.com/>
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; version 2 of the License.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+bool[libcrtx_max_players] libcrtx_rgn_event_select_on;
+bool[libcrtx_max_players] libcrtx_rgn_event_plant_on;
+
+bool[libcrtx_max_players] libcrtx_isSelectingRegion_start;
+bool[libcrtx_max_players] libcrtx_isSelectingRegion_end;
+bool[libcrtx_max_players] libcrtx_rgn_selected;
+bool[libcrtx_max_players] libcrtx_rgn_is_rect;
+point[libcrtx_max_players] libcrtx_rgn_selection_start;
+point[libcrtx_max_players] libcrtx_rgn_selection_end;
+const string libcrtx_rgn_marker_model = "ShapeCone";
+
+bool libcrtx_command_regioncreate(bool checkConds, bool runActions)
+{
+	region r;
+	fixed radius;
+	string name;
+	
+	name = StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 2);
+	
+	if(libcrtx_rgn_selected[EventPlayer()]) {
+		if(libcrtx_rgn_is_rect[EventPlayer()]) {
+			if( DataTableGetRegion( true, libcrtx_command_region_buildidentifier(name) ) ) {
+				libcrtx_write_error("A region with that name already exists!");
+				return true;
+			}
+			r = RegionRect(PointGetX(libcrtx_rgn_selection_start[EventPlayer()]), PointGetY(libcrtx_rgn_selection_start[EventPlayer()]),
+							PointGetX(libcrtx_rgn_selection_end[EventPlayer()]), PointGetY(libcrtx_rgn_selection_end[EventPlayer()]));
+			
+			DataTableSetRegion( true, libcrtx_command_region_buildidentifier(name), r );
+			
+			libcrtx_write_success("Region (rectangle) \"" + name + "\" has been created.");	
+			return true;
+		}
+		else { //region is circle
+			radius = DistanceBetweenPoints(libcrtx_rgn_selection_start[EventPlayer()],libcrtx_rgn_selection_end[EventPlayer()]);
+			
+			if( DataTableGetRegion( true, libcrtx_command_region_buildidentifier(name) ) ) {
+				libcrtx_write_error("A region with that name already exists!");
+				return true;
+			}
+
+			r = RegionCircle( libcrtx_rgn_selection_start[EventPlayer()], radius );
+		
+			// and save it
+			DataTableSetRegion( true, libcrtx_command_region_buildidentifier(name), r );
+			
+			libcrtx_write_success("Region (circle) \"" + name + "\" has been created.");
+			return true;
+		}
+	}
+	else {
+		radius = StringToFixed(StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 3));
+		if( radius == 0.0 ) {
+			radius = 2;
+		}
+
+		if( DataTableGetRegion( true, libcrtx_command_region_buildidentifier(name) ) ) {
+			libcrtx_write_error("A region with that name already exists!");
+			return true;
+		}
+
+		r = RegionCircle( libcrtx_spawn_position(), radius );
+		
+		// and save it
+		DataTableSetRegion( true, libcrtx_command_region_buildidentifier(name), r );
+		libcrtx_write_success("Region (circle) \"" + name + "\" has been created.");
+
+	}
+	
+	return true;
+}
+
+bool libcrtx_command_regionremove(bool checkConds, bool runActions)
+{
+	string name = StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 2);
+
+	if( DataTableGetRegion( true, libcrtx_command_region_buildidentifier(name) ) ) {
+		DataTableValueRemove( true, libcrtx_command_region_buildidentifier(name) );
+		//Check if this region, "Region A" for convenience, was linked to another region for teleportation.
+		if(DataTableValueExists(true, libcrtx_command_region_buildidentifier(name)+"_link")) {
+			// We have a link! Let's purge everything with holy fire! Or a handy native and some tricky code.
+			//
+			// Basically, we need to destroy everything from Region A to the region it's linked to (which we'll call "B").
+			// But we don't want to destroy B itself! So we first use A's link to B again to find B's name.
+			// Then we append the "_link" suffix to B's name, use it to get the link from B to A, and use that to destroy the value that B used to get A's name.
+			DataTableValueRemove(true,"region_guid_" + IntToString(DataTableGetInt(true,DataTableGetString(true,"region_guid_" + IntToString(DataTableGetInt(true,libcrtx_command_region_buildidentifier(name)+"_link"))) + "_link")));
+			
+			// Now that we did the single most confusing leapfrogging function call I've ever written, we need to backtrack our way a little.
+			// This time, we do the same process, but stop at the link from B to A we used above and destroy it instead of using it.
+			DataTableValueRemove(true,DataTableGetString(true,"region_guid_" + IntToString(DataTableGetInt(true,libcrtx_command_region_buildidentifier(name)+"_link"))) + "_link");
+			
+			// We've finally destroyed the chain from B to A. Now we need to destroy the chain from A to B.
+			// Again, first comes the data that A uses to find B's name. Which means we're basically backtracking one step again.
+			DataTableValueRemove(true,"region_guid_" + IntToString(DataTableGetInt(true,libcrtx_command_region_buildidentifier(name)+"_link")));
+			
+			// One less backtrack, this time to directly destroy A's link to B. 
+			DataTableValueRemove(true,libcrtx_command_region_buildidentifier(name)+"_link");
+			// We're finally done! All the links between A and B are gone, and since we've already destroyed A itself before even entering this IF block,
+			// our job here is done. Someone should rewrite this stuff seomday to not be so incredibly leapfroggy and nested.
+		}
+		
+		libcrtx_write_success("Region \"" + name + "\" has been removed.");
+	} else {
+		libcrtx_write_error("No region with that name exists!");
+	}
+	
+	return true;
+}
+
+bool libcrtx_command_regionremoveall(bool checkConds, bool runActions)
+{
+	int dataCount = 1;
+	int removeCount = 0;
+	
+	//Remove everything that uses the region prefix or the region guid prefix.
+	//This will remove everything including links between regions. -F
+	while( dataCount <= DataTableValueCount(true)) {
+		if(StringSub(DataTableValueName(true,dataCount),1,StringLength(libcrtx_command_region_buildidentifier(""))) == libcrtx_command_region_buildidentifier("")) {
+			//This entry was either a region or a link to a region name. Remove it. -F
+			DataTableValueRemove(true,DataTableValueName(true,dataCount));
+			removeCount = removeCount + 1;
+		} else if(StringSub(DataTableValueName(true,dataCount),1,StringLength("region_guid_")) == "region_guid_") {
+			//This entry was a region name used by a region link. Remove it. -F
+			DataTableValueRemove(true,DataTableValueName(true,dataCount));
+			removeCount = removeCount + 1;
+		}
+		dataCount = dataCount + 1;
+	}
+	
+	if(removeCount) {
+		libcrtx_write_success("All your regions have been removed.");
+	} else {
+		libcrtx_write_error("You have no regions to remove.");
+	}
+	
+	return true;
+}
+
+bool libcrtx_command_regionlist(bool checkConds, bool runActions)
+{
+	int dataCount = 1;
+	int regionCount = 0;
+	string regList;
+	
+	while( dataCount <= DataTableValueCount(true)) {
+		//If the name of this entry begins with the region prefix, and doesn't have the _link suffix for teleports, then this is one of the regions we want.
+		if( StringSub( DataTableValueName(true,dataCount) , 1 , StringLength(libcrtx_command_region_buildidentifier("")) ) == libcrtx_command_region_buildidentifier("")
+				&& StringSub( DataTableValueName(true,dataCount) , StringLength(DataTableValueName(true,dataCount))-4 , StringLength(DataTableValueName(true,dataCount)) ) != "_link") 
+		{
+			if(regionCount == 0) {
+			regList = StringSub(DataTableValueName(true,dataCount),StringLength(libcrtx_command_region_buildidentifier(""))+1,StringLength(DataTableValueName(true,dataCount)));
+			} else {
+			regList = regList + ", " + StringSub(DataTableValueName(true,dataCount),StringLength(libcrtx_command_region_buildidentifier(""))+1,StringLength(DataTableValueName(true,dataCount)));
+			}
+			regionCount = regionCount + 1;
+		}
+		dataCount = dataCount + 1;
+	}
+	
+	if(regionCount) {
+		libcrtx_write(PlayerGroupSingle(EventPlayer()), regList);
+	} else {
+		libcrtx_write(PlayerGroupSingle(EventPlayer()),"You have no regions.");
+	}
+	
+	return true;
+}
+
+bool libcrtx_command_teleport(bool checkConds, bool runActions)
+{
+	trigger t;
+
+	string rn1;
+	string rn2;
+
+	string rl1;
+	string rl2;
+
+	region r1;
+	region r2;
+
+	int g1;
+	int g2;
+
+	// Take two regions we own, and read 'em.
+	rn1 = StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 2);
+	rn2 = StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 3);
+	
+	rn1 = libcrtx_command_region_buildidentifier(rn1);
+	rn2 = libcrtx_command_region_buildidentifier(rn2);
+
+	if(DataTableValueExists(true, libcrtx_command_region_buildidentifier(rn1)+"_link")) {
+			// We have a link! Let's purge everything with holy fire! Or a handy native and some tricky code.
+			//
+			// Basically, we need to destroy everything from Region A to the region it's linked to (which we'll call "B").
+			// But we don't want to destroy B itself! So we first use A's link to B again to find B's name.
+			// Then we append the "_link" suffix to B's name, use it to get the link from B to A, and use that to destroy the value that B used to get A's name.
+			DataTableValueRemove(true,"region_guid_" + IntToString(DataTableGetInt(true,DataTableGetString(true,"region_guid_" + IntToString(DataTableGetInt(true,libcrtx_command_region_buildidentifier(rn1)+"_link"))) + "_link")));
+			
+			// Now that we did the single most confusing leapfrogging function call I've ever written, we need to backtrack our way a little.
+			// This time, we do the same process, but stop at the link from B to A we used above and destroy it instead of using it.
+			DataTableValueRemove(true,DataTableGetString(true,"region_guid_" + IntToString(DataTableGetInt(true,libcrtx_command_region_buildidentifier(rn1)+"_link"))) + "_link");
+			
+			// We've finally destroyed the chain from B to A. Now we need to destroy the chain from A to B.
+			// Again, first comes the data that A uses to find B's name. Which means we're basically backtracking one step again.
+			DataTableValueRemove(true,"region_guid_" + IntToString(DataTableGetInt(true,libcrtx_command_region_buildidentifier(rn1)+"_link")));
+			
+			// One less backtrack, this time to directly destroy A's link to B. 
+			DataTableValueRemove(true,libcrtx_command_region_buildidentifier(rn1)+"_link");
+			// We're finally done! All the links between A and B are gone, and since we've already destroyed A itself before even entering this IF block,
+			// our job here is done. Someone should rewrite this stuff seomday to not be so incredibly leapfroggy and nested.
+	}
+	
+	r1 = DataTableGetRegion(true, rn1);
+	r2 = DataTableGetRegion(true, rn2);
+	
+	if( r1 == null || r2 == null ) {
+		libcrtx_write_error("One or more invalid regions were entered.");
+		return true;
+	}
+
+	rl1 = rn1 + "_link";
+	rl2 = rn2 + "_link";
+
+	// Link the regions to their counterparts.
+	// Add regions to the global region index
+	DataTableSetRegion(true, IntToString(libcrtx_region_guid_counter), r1);
+	DataTableSetString(true, "region_guid_" + IntToString(libcrtx_region_guid_counter), rn1);
+	g1 = libcrtx_region_guid_counter;
+	libcrtx_region_guid_counter = libcrtx_region_guid_counter + 1;
+	DataTableSetRegion(true, IntToString(libcrtx_region_guid_counter), r2);
+	DataTableSetString(true, "region_guid_" + IntToString(libcrtx_region_guid_counter), rn2);
+	g2 = libcrtx_region_guid_counter;
+	libcrtx_region_guid_counter = libcrtx_region_guid_counter + 1;
+
+	// Link 'em together!
+	DataTableSetInt(true, rl1, g2);
+	DataTableSetInt(true, rl2, g1);
+
+	t = TriggerCreate("libcrtx_event_unit_enter_region");
+	TriggerAddEventUnitRegion( t, null, r1, true );
+	TriggerAddEventUnitRegion( t, null, r1, false );
+	TriggerAddEventUnitRegion( t, null, r2, true );
+	TriggerAddEventUnitRegion( t, null, r2, false );
+	
+	libcrtx_write_success("Teleport made between regions " + rn1 + " and " + rn2);
+	return true;
+}
+
+bool libcrtx_command_regionattach(bool checkConds, bool runActions)
+{
+	string rgnName;
+	region rgn = null;
+	unitgroup g = libcrtx_chat_get_context(EventPlayer());
+	point offset;
+	
+	rgnName = StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 2);
+	rgnName = libcrtx_command_region_buildidentifier(rgnName);
+
+	if(DataTableValueExists(true, libcrtx_command_region_buildidentifier(rgnName) + "_link"))
+	{
+		rgn = DataTableGetRegion(true, libcrtx_command_region_buildidentifier(rgnName) + "_link");
+	}
+	else
+	{
+		rgn = DataTableGetRegion(true, rgnName);
+	}
+
+	if(rgn == null)
+	{
+		libcrtx_write_error("No region with that name exists!");
+		return true;
+	}
+
+	offset = Point(StringToFixed(StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 3)),
+		StringToFixed(StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 4)));
+
+	if(UnitGroupCount(g, c_unitCountAll) == 0)
+	{
+		RegionAttachToUnit(rgn, null, offset);
+		libcrtx_write_success("Region unattached successfully.");
+	}
+	else if(UnitGroupCount(g, c_unitCountAll) == 1)
+	{
+		RegionAttachToUnit(rgn, UnitGroupUnit(g, 1), offset);
+		libcrtx_write_success("Region attached successfully.");
+	}
+	else
+	{
+		libcrtx_write_error("You can't attach the same region to multiple units!");
+	}
+
+	return true;
+}
+//Reveals a region: #reveal A red on/off
+bool libcrtx_command_regionreveal(bool checkConds, bool runActions)
+{
+	int i = 1;
+	string rgnName;
+	region rgn = null;
+	fixed time;
+	bool on = true;
+	
+	rgnName = StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 2);
+	rgnName = libcrtx_command_region_buildidentifier(rgnName);
+	
+	if(DataTableValueExists(true, libcrtx_command_region_buildidentifier(rgnName) + "_link"))
+	{
+		rgn = DataTableGetRegion(true, libcrtx_command_region_buildidentifier(rgnName) + "_link");
+	}
+	else
+	{
+		rgn = DataTableGetRegion(true, rgnName);
+	}
+
+	if(rgn == null)
+	{
+		libcrtx_write_error("No region with that name exists!");
+		return true;
+	}
+	
+	if(StringEqual(StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 4), "off", false)) {
+		on = false;
+	}
+	
+	if(StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 3) == "" || StringEqual(StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 3), "all", false) ) { //if null, then reveals for all players
+		while(i < libcrtx_max_players) {
+			if( PlayerStatus(i) == c_playerStatusActive ) {
+				if(on) {
+					if(!DataTableValueExists(true, "#vis " + rgnName + " " + IntToString(i))) {
+						VisRevealerCreate(i, rgn);
+						DataTableSetRevealer(true, "#vis " + rgnName + " " + IntToString(i), VisRevealerLastCreated());
+					}
+				}
+				else {
+					if(DataTableValueExists(true, "#vis " + rgnName + " " + IntToString(i))) {
+						VisRevealerDestroy(DataTableGetRevealer(true, "#vis " + rgnName + " " + IntToString(i)));
+						DataTableValueRemove(true, "#vis " + rgnName + " " + IntToString(i));
+					}
+				}
+			}
+			i += 1;
+		}
+		
+		return true;
+	}
+	else {
+		if(libcrtx_color_to_player(StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 3)) == -1) {
+			return true;
+		}
+		if(on) {
+			if(!DataTableValueExists(true, "#vis " + rgnName + " " + IntToString(libcrtx_color_to_player(StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 3))))) {
+				VisRevealerCreate(libcrtx_color_to_player(StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 3)), rgn);
+				DataTableSetRevealer(true, "#vis " + rgnName + " " + IntToString(libcrtx_color_to_player(StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 3))), VisRevealerLastCreated());
+			}
+			return true;
+		}
+		else {
+			if(DataTableValueExists(true, "#vis " + rgnName + " " + IntToString(libcrtx_color_to_player(StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 3))))) {
+				VisRevealerDestroy(DataTableGetRevealer(true, "#vis " + rgnName + " " + IntToString(libcrtx_color_to_player(StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 3)))));
+				DataTableValueRemove(true, "#vis " + rgnName + " " + IntToString(libcrtx_color_to_player(StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 3))));
+			}
+		}
+	}
+	
+	return true;
+}
+//=============================================
+// FUNCTIONS FOR #SELECT
+
+bool libcrtx_region_plant_update(bool checkConds, bool runActions);
+bool libcrtx_region_plant_start(bool checkConds, bool runActions)
+{
+	int i = 1;
+	
+	if(!libcrtx_isSelectingRegion_start[EventPlayer()]) {
+		if(!libcrtx_rgn_event_plant_on[EventPlayer()]) {
+			TriggerDestroy(TriggerGetCurrent());
+			//libcrtx_write_error("libcrtx_region_plant_start RUNNING INVALID TIME: TRIGGER REMOVED");			
+		}
+		return true;
+	}
+	//libcrtx_write_success("START");
+	
+	if(DataTableGetTrigger(true, IntToString(EventPlayer()) + "_rgn_event_plant") == null) {
+		DataTableSetTrigger(true, IntToString(EventPlayer()) + "_rgn_event_plant", TriggerGetCurrent()); //id: playerNumber_rgn_event_update
+		//libcrtx_write_success("NO TRIGGER FOR libcrtx_region_plant_start FOUND: WRITTEN TO DATA TABLE");
+	}
+	
+	if(libcrtx_rgn_selected[EventPlayer()]) { //in order to restart selection
+		libNtve_gf_SendActorMessageToGameRegionWithFilters(RegionEntireMap(), c_actorIntersectAgainstCenter, "Destroy", "Model", "IsStatus rgn_edge " + IntToString(EventPlayer()));	
+		ActorSend(DataTableGetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_start"), "Destroy");
+		ActorSend(DataTableGetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_end"), "Destroy");
+		DataTableValueRemove(true, "rgn_" + IntToString(EventPlayer()) + "_node_start");
+		DataTableValueRemove(true, "rgn_" + IntToString(EventPlayer()) + "_node_end");
+		libcrtx_rgn_selected[EventPlayer()] = false;
+	}
+	libcrtx_rgn_selection_start[EventPlayer()] = Point(EventMouseClickedPosXWorld(), EventMouseClickedPosYWorld());
+	
+	//place model and save in data table with syntax: rgn_[playerNumber]_node_start
+	libNtve_gf_CreateModelAtPoint(libcrtx_rgn_marker_model, libcrtx_rgn_selection_start[EventPlayer()]);
+	DataTableSetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_start", libNtve_gf_ActorLastCreated());
+	
+	//color the marker to player's color
+	ActorSend(libNtve_gf_ActorLastCreated(), "SetTintColor {250,250,250 2.5}");
+	ActorSend(libNtve_gf_ActorLastCreated(), "SetScale .2,.2,.3");
+
+	
+	//set filter so only the current player can see it:
+    while(i < libcrtx_max_players) {
+		if(i == EventPlayer() || PlayerStatus(i) != c_playerStatusActive) {
+			i += 1;
+			continue;
+		}
+		ActorSend(libNtve_gf_ActorLastCreated(), "SetFilterPlayers " + IntToString(i));
+		i += 1;
+	}
+	
+	//if region is rect, create the other corner node marker (rgn_[playerNumber]_node_end)
+	if(libcrtx_rgn_is_rect[EventPlayer()]) {
+		libNtve_gf_CreateModelAtPoint(libcrtx_rgn_marker_model, libcrtx_rgn_selection_start[EventPlayer()]);
+		DataTableSetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_end", libNtve_gf_ActorLastCreated());
+		//color it!
+		ActorSend(libNtve_gf_ActorLastCreated(), "SetScale .2,.2,.3");
+
+		ActorSend(libNtve_gf_ActorLastCreated(), "SetTintColor {250,250,250 2.5}");
+		//set filter so only the current player can see it:
+		i = 1;
+		while(i < libcrtx_max_players) {
+			if(i == EventPlayer() || PlayerStatus(i) != c_playerStatusActive) {
+				i += 1;
+				continue;
+			}
+			ActorSend(libNtve_gf_ActorLastCreated(), "SetFilterPlayers " + IntToString(i));
+			i += 1;
+		}
+	}
+	
+
+	libcrtx_isSelectingRegion_start[EventPlayer()] = false;
+	libcrtx_isSelectingRegion_end[EventPlayer()] = true;
+	
+	//only create trigger for event player, when necessary, to reduce event checks ingame
+	if(!libcrtx_rgn_event_select_on[EventPlayer()]) {
+		TriggerAddEventMouseMoved(TriggerCreate("libcrtx_region_plant_update"), EventPlayer());
+		TriggerAddEventMouseClicked(TriggerCreate("libcrtx_region_plant_end"), EventPlayer(), c_mouseButtonLeft, true);
+		libcrtx_rgn_event_select_on[EventPlayer()] = true;
+	}
+		
+	return true;
+}
+bool libcrtx_region_plant_update(bool checkConds, bool runActions) //just updates visuals
+{
+	fixed x_node = PointGetX(libcrtx_rgn_selection_start[EventPlayer()]);
+	fixed y_node = PointGetY(libcrtx_rgn_selection_start[EventPlayer()]);
+	fixed x = EventMouseMovedPosXWorld();
+	fixed y = EventMouseMovedPosYWorld();
+	fixed d;
+	fixed angle = 0;
+	int i = 1;
+	int n;
+	int count = 15;
+	
+	if(!libcrtx_isSelectingRegion_end[EventPlayer()]) {
+		//trigger should be running yet: destroy it
+		TriggerDestroy(TriggerGetCurrent());
+		//libcrtx_write_error("libcrtx_region_plant_update RUNNING INVALID TIME: TRIGGER REMOVED");		
+		return false;
+	}
+
+	if(DataTableGetTrigger(true, IntToString(EventPlayer()) + "_rgn_event_update") == null) {
+		DataTableSetTrigger(true, IntToString(EventPlayer()) + "_rgn_event_update", TriggerGetCurrent()); //id: playerNumber_rgn_event_update
+		//libcrtx_write_success("NO TRIGGER FOR libcrtx_region_plant_update FOUND: WRITTEN TO DATA TABLE");
+	}
+
+	//syntax for edge markers: rgn_[playerNumber]_node_side
+	//clear any existing edge markers for event player
+	libNtve_gf_SendActorMessageToGameRegionWithFilters(RegionEntireMap(), c_actorIntersectAgainstCenter, "Destroy", "Model", "IsStatus rgn_edge " + IntToString(EventPlayer()));
+	
+	//libcrtx_write_error(FixedToString(x_node,3) + "," + FixedToString(y_node,3));
+	
+	if(libcrtx_rgn_is_rect[EventPlayer()]) {
+		//move the corner marker:
+		ActorSend(DataTableGetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_end"), libNtve_gf_SetPosition (EventMouseMovedPosXWorld(), EventMouseMovedPosYWorld(), EventMouseMovedPosZWorld()));
+
+		//now create edges:
+		//x_node constant edge
+		n = 1;
+		while(n <= count) {
+			libNtve_gf_CreateModelAtPoint(libcrtx_rgn_marker_model, Point(x_node, y_node + (y - y_node)*(IntToFixed(n)/count)));
+			ActorSend(libNtve_gf_ActorLastCreated(), "SetScale .2,.2,.3");
+			ActorSend(libNtve_gf_ActorLastCreated(), "StatusSet rgn_edge " + IntToString(EventPlayer()));
+			ActorSend(libNtve_gf_ActorLastCreated(), "SetTintColor {250,250,250 2.5}");
+			//set filter so only the current player can see it:
+			while(i < libcrtx_max_players) {
+				if(i == EventPlayer() || PlayerStatus(i) != c_playerStatusActive) {
+					i += 1;
+					continue;
+				}
+				ActorSend(libNtve_gf_ActorLastCreated(), "SetFilterPlayers " + IntToString(i));
+				i += 1;
+			}
+			n += 1;
+		}
+		//x constant edge
+		n = 1;
+		while(n <= count) {
+			libNtve_gf_CreateModelAtPoint(libcrtx_rgn_marker_model, Point(x, y_node + (y - y_node)*(IntToFixed(n)/count)));
+			ActorSend(libNtve_gf_ActorLastCreated(), "SetScale .2,.2,.3");
+			ActorSend(libNtve_gf_ActorLastCreated(), "StatusSet rgn_edge " + IntToString(EventPlayer()));
+			ActorSend(libNtve_gf_ActorLastCreated(), "SetTintColor {250,250,250 2.5}");
+			//set filter so only the current player can see it:
+			i = 1;
+			while(i < libcrtx_max_players) {
+				if(i == EventPlayer() || PlayerStatus(i) != c_playerStatusActive) {
+					i += 1;
+					continue;
+				}
+				ActorSend(libNtve_gf_ActorLastCreated(), "SetFilterPlayers " + IntToString(i));
+				i += 1;
+			}
+			n += 1;
+		}
+		//y_node constant edge
+		n = 1;
+		while(n <= count) {
+			libNtve_gf_CreateModelAtPoint(libcrtx_rgn_marker_model, Point(x_node + (x - x_node)*(IntToFixed(n)/count), y_node));
+			ActorSend(libNtve_gf_ActorLastCreated(), "SetScale .2,.2,.3");
+			ActorSend(libNtve_gf_ActorLastCreated(), "StatusSet rgn_edge " + IntToString(EventPlayer()));
+			ActorSend(libNtve_gf_ActorLastCreated(), "SetTintColor {250,250,250 2.5}");
+			//set filter so only the current player can see it:
+			i = 1;
+			while(i < libcrtx_max_players) {
+				if(i == EventPlayer() || PlayerStatus(i) != c_playerStatusActive) {
+					i += 1;
+					continue;
+				}
+				ActorSend(libNtve_gf_ActorLastCreated(), "SetFilterPlayers " + IntToString(i));
+				i += 1;
+			}
+			n += 1;
+		}
+		//y constant edge
+		n = 1;
+		while(n <= count) {
+			libNtve_gf_CreateModelAtPoint(libcrtx_rgn_marker_model, Point(x_node + (x - x_node)*(IntToFixed(n)/count), y));
+			ActorSend(libNtve_gf_ActorLastCreated(), "SetScale .2,.2,.3");
+			ActorSend(libNtve_gf_ActorLastCreated(), "StatusSet rgn_edge " + IntToString(EventPlayer()));
+			ActorSend(libNtve_gf_ActorLastCreated(), "SetTintColor {250,250,250 2.5}");
+			//set filter so only the current player can see it:
+			i = 1;
+			while(i < libcrtx_max_players) {
+				if(i == EventPlayer() || PlayerStatus(i) != c_playerStatusActive) {
+					i += 1;
+					continue;
+				}
+				ActorSend(libNtve_gf_ActorLastCreated(), "SetFilterPlayers " + IntToString(i));
+				i += 1;
+			}
+			n += 1;
+		}
+	}
+	else { //rgn_is_circle
+		d = DistanceBetweenPoints(libcrtx_rgn_selection_start[EventPlayer()], Point(x,y));
+		while(angle < 360) {
+			libNtve_gf_CreateModelAtPoint(libcrtx_rgn_marker_model, PointWithOffsetPolar(libcrtx_rgn_selection_start[EventPlayer()], d, angle));
+			ActorSend(libNtve_gf_ActorLastCreated(), "SetScale .2,.2,.3");
+		
+			ActorSend(libNtve_gf_ActorLastCreated(), "StatusSet rgn_edge " + IntToString(EventPlayer()));
+			ActorSend(libNtve_gf_ActorLastCreated(), "SetTintColor {250,250,250 2.5}");
+			//set filter so only the current player can see it:
+			while(i < libcrtx_max_players) {
+				if(i == EventPlayer() || PlayerStatus(i) != c_playerStatusActive) {
+					i += 1;
+					continue;
+				}
+				ActorSend(libNtve_gf_ActorLastCreated(), "SetFilterPlayers " + IntToString(i));
+				i += 1;
+			}
+			angle += 5;
+		}
+	}
+
+	return true;
+}
+bool libcrtx_region_plant_end(bool checkConds, bool runActions)
+{
+	if(!libcrtx_isSelectingRegion_end[EventPlayer()] || libcrtx_isSelectingRegion_start[EventPlayer()]) {
+		//trigger should not be running: destroy it
+		TriggerDestroy(TriggerGetCurrent());
+		//libcrtx_write_error("libcrtx_region_plant_end RUNNING INVALID TIME: TRIGGER REMOVED");		
+		return true;
+	}
+	//libcrtx_write_error("END");
+	
+	libcrtx_rgn_selection_end[EventPlayer()] = Point(EventMouseClickedPosXWorld(), EventMouseClickedPosYWorld());
+	libcrtx_rgn_selected[EventPlayer()] = true;
+	libcrtx_isSelectingRegion_end[EventPlayer()] = false;
+	libcrtx_isSelectingRegion_start[EventPlayer()] = true;
+	
+	//destroy update and end triggers
+	libcrtx_rgn_event_select_on[EventPlayer()] = false;
+	TriggerDestroy(DataTableGetTrigger(true, IntToString(EventPlayer()) + "_rgn_event_update"));
+	DataTableValueRemove(true, IntToString(EventPlayer()) + "_rgn_event_update");
+	TriggerDestroy(TriggerGetCurrent());
+	
+	return true;
+}
+bool libcrtx_command_regionselect(bool checkConds, bool runActions) //#select
+{
+	string param = StringWord(libcrtx_chat_get_parse_line(EventPlayer()), 2);
+	
+	if(param == "") {
+		param = "rect";
+	}
+	
+	//check if player is in the middle of selecting a region
+	if(libcrtx_isSelectingRegion_end[EventPlayer()]) {
+		libNtve_gf_SendActorMessageToGameRegionWithFilters(RegionEntireMap(), c_actorIntersectAgainstCenter, "Destroy", "Model", "IsStatus rgn_edge " + IntToString(EventPlayer()));	
+		ActorSend(DataTableGetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_start"), "Destroy");
+		ActorSend(DataTableGetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_end"), "Destroy");
+		DataTableValueRemove(true, "rgn_" + IntToString(EventPlayer()) + "_node_start");
+		DataTableValueRemove(true, "rgn_" + IntToString(EventPlayer()) + "_node_end");
+		libcrtx_rgn_selected[EventPlayer()] = false;	
+		libcrtx_isSelectingRegion_end[EventPlayer()] = false;
+	}
+	else if(libcrtx_rgn_selected[EventPlayer()]) { 
+		libNtve_gf_SendActorMessageToGameRegionWithFilters(RegionEntireMap(), c_actorIntersectAgainstCenter, "Destroy", "Model", "IsStatus rgn_edge " + IntToString(EventPlayer()));	
+		ActorSend(DataTableGetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_start"), "Destroy");
+		ActorSend(DataTableGetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_end"), "Destroy");
+		DataTableValueRemove(true, "rgn_" + IntToString(EventPlayer()) + "_node_start");
+		DataTableValueRemove(true, "rgn_" + IntToString(EventPlayer()) + "_node_end");
+		libcrtx_rgn_selected[EventPlayer()] = false;
+	}
+	
+	if(StringEqual(param, "rect", c_stringNoCase) || StringEqual(param, "rectangle", c_stringNoCase)) {
+		libcrtx_rgn_is_rect[EventPlayer()] = true;
+		libcrtx_isSelectingRegion_start[EventPlayer()] = true;
+
+		if(!libcrtx_rgn_event_plant_on[EventPlayer()]) {
+			TriggerAddEventMouseClicked(TriggerCreate("libcrtx_region_plant_start"), EventPlayer(), c_mouseButtonLeft, true);
+			libcrtx_rgn_event_plant_on[EventPlayer()] = true;
+		}
+		
+		libcrtx_write(PlayerGroupSingle(EventPlayer()), "Click to place the first corner of the region (or type #cancel to cancel)");
+	}
+	
+	if(StringEqual(param, "circle", c_stringNoCase)) {
+		libcrtx_rgn_is_rect[EventPlayer()] = false;
+		libcrtx_isSelectingRegion_start[EventPlayer()] = true;
+
+		if(!libcrtx_rgn_event_plant_on[EventPlayer()]) {
+			TriggerAddEventMouseClicked(TriggerCreate("libcrtx_region_plant_start"), EventPlayer(), c_mouseButtonLeft, true);
+			libcrtx_rgn_event_plant_on[EventPlayer()] = true;
+		}
+		
+		libcrtx_write(PlayerGroupSingle(EventPlayer()), "Click to place the center of the region (or type #cancel to cancel)");
+		
+	}
+	
+	
+	return true;
+
+}
+bool libcrtx_command_regionselect_cancel(bool checkConds, bool runActions) //#cancel to cancel a region selection at any step
+{
+	if(libcrtx_isSelectingRegion_start[EventPlayer()]) {
+		libNtve_gf_SendActorMessageToGameRegionWithFilters(RegionEntireMap(), c_actorIntersectAgainstCenter, "Destroy", "Model", "IsStatus rgn_edge " + IntToString(EventPlayer()));	
+		ActorSend(DataTableGetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_start"), "Destroy");
+		ActorSend(DataTableGetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_end"), "Destroy");
+		DataTableValueRemove(true, "rgn_" + IntToString(EventPlayer()) + "_node_start");
+		DataTableValueRemove(true, "rgn_" + IntToString(EventPlayer()) + "_node_end");
+		libcrtx_isSelectingRegion_start[EventPlayer()] = false;
+	}
+	if(libcrtx_isSelectingRegion_end[EventPlayer()]) {
+		libNtve_gf_SendActorMessageToGameRegionWithFilters(RegionEntireMap(), c_actorIntersectAgainstCenter, "Destroy", "Model", "IsStatus rgn_edge " + IntToString(EventPlayer()));	
+		ActorSend(DataTableGetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_start"), "Destroy");
+		ActorSend(DataTableGetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_end"), "Destroy");
+		DataTableValueRemove(true, "rgn_" + IntToString(EventPlayer()) + "_node_start");
+		DataTableValueRemove(true, "rgn_" + IntToString(EventPlayer()) + "_node_end");
+		libcrtx_rgn_selected[EventPlayer()] = false;	
+		libcrtx_isSelectingRegion_end[EventPlayer()] = false;
+	}
+	if(libcrtx_rgn_selected[EventPlayer()]) { 
+		libNtve_gf_SendActorMessageToGameRegionWithFilters(RegionEntireMap(), c_actorIntersectAgainstCenter, "Destroy", "Model", "IsStatus rgn_edge " + IntToString(EventPlayer()));	
+		ActorSend(DataTableGetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_start"), "Destroy");
+		ActorSend(DataTableGetActor(true, "rgn_" + IntToString(EventPlayer()) + "_node_end"), "Destroy");
+		DataTableValueRemove(true, "rgn_" + IntToString(EventPlayer()) + "_node_start");
+		DataTableValueRemove(true, "rgn_" + IntToString(EventPlayer()) + "_node_end");
+		libcrtx_rgn_selected[EventPlayer()] = false;
+	}
+	
+	libcrtx_rgn_event_plant_on[EventPlayer()] = false;
+	
+	libcrtx_write(PlayerGroupSingle(EventPlayer()), "Region selecting stopped");
+	
+	return true;
+}

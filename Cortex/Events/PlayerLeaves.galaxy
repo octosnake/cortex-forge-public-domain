@@ -1,0 +1,59 @@
+// Cortex SC2 Roleplaying Engine
+// Copyright (C) 2009-2011 <http://www.cortexrp.com/>
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; version 2 of the License.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+bool libcrtx_event_playerleaves(bool runConditions, bool runActions)
+{
+	playergroup actives = PlayerGroupActive();
+	int i = 1;
+	libcrtx_write_text(PlayerGroupAll(), libcrtx_colored_player_name(EventPlayer())+ StringToText(" has left the game."));
+	
+	if( libcrtx_admin_getpermissions( EventPlayer() ) == libcrtx_admin_permissionlevel_admin )
+	{
+		// The administrator has left! Let's appoint a new one.
+		// First, look to promote any moderators we have left.
+		while( i < libcrtx_max_players )
+		{
+			if( PlayerStatus(i) == c_playerStatusActive && libcrtx_admin_getpermissions(i) == libcrtx_admin_permissionlevel_moderator )
+			{
+				// Promote him and we're done.
+				libcrtx_admin_setpermission(i, libcrtx_admin_permissionlevel_admin);
+				libcrtx_write_text(PlayerGroupAll(), libcrtx_colored_player_name(i) + StringToText(" has been promoted to admin by ") + libcrtx_colored_player_name(EventPlayer()));
+				libcrtx_player_admin = i;
+				
+				//set leaving admin permissions to normal
+				libcrtx_admin_setpermission(EventPlayer(), libcrtx_admin_permissionlevel_none);
+				return true;
+			}
+			i += 1;
+		}
+	
+		PlayerGroupRemove(actives, libcrtx_setting_getint(libcrtx_setting_int_smarthostile));
+	
+		// If we have no one left, exit now.
+		if( PlayerGroupCount(actives) == 0 )
+		{
+			return true;
+		}
+	
+		// Otherwise, just appoint someone randomly.
+		i = PlayerGroupPlayer(actives, RandomInt(1, PlayerGroupCount(actives)));
+		libcrtx_admin_setpermission(i, libcrtx_admin_permissionlevel_admin);
+		libcrtx_write_text(PlayerGroupAll(), libcrtx_colored_player_name(i) + StringToText(" has been promoted to admin by ") + libcrtx_colored_player_name(EventPlayer()));
+		libcrtx_player_admin = i;
+	
+		//set leaving admin permissions to normal
+		libcrtx_admin_setpermission(EventPlayer(), libcrtx_admin_permissionlevel_none);
+		return true;
+	}
+	
+	return true;
+}

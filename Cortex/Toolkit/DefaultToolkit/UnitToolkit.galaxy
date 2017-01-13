@@ -1,0 +1,63 @@
+// Cortex SC2 Roleplaying Engine
+// Copyright (C) 2009-2011 <http://www.cortexrp.com/>
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; version 2 of the License.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// Toolkit file for weapon names
+
+void libcrtx_toolkit_default_initunittools()
+{
+    // levels
+    libcrtx_toolkit_setmaxlevel(10);
+    libcrtx_toolkit_setlevelbehavior("Levels");
+    libcrtx_toolkit_setexperiencegiverbehavior("GiveExperience");
+	
+	// Setting up damage behaviors with completely arbitrary index numbers.
+	// The same arbitrary numbers have to be used in the corresponding loops in 
+	// libcrtx_command_adddamage() and libcrtx_command_removedamage(). -F
+    libcrtx_toolkit_setdamagebehavior("IncreaseDamage1",1);
+	libcrtx_toolkit_setdamagebehavior("IncreaseDamage10",2);
+	libcrtx_toolkit_setdamagebehavior("IncreaseDamage100",3);
+	libcrtx_toolkit_setdamagebehavior("IncreaseDamage1000",4);
+	
+	libcrtx_toolkit_setdamagebehavior("DecreaseDamage1",5);
+	libcrtx_toolkit_setdamagebehavior("DecreaseDamage10",6);
+	libcrtx_toolkit_setdamagebehavior("DecreaseDamage100",7);
+	libcrtx_toolkit_setdamagebehavior("DecreaseDamage1000",8);
+
+	libcrtx_toolkit_setrangebehavior("IncreaseRange1",1);
+	libcrtx_toolkit_setrangebehavior("IncreaseRange10",2);
+	
+	libcrtx_toolkit_setrangebehavior("DecreaseRange1",4);
+	libcrtx_toolkit_setrangebehavior("DecreaseRange10",5);
+
+	libcrtx_toolkit_setarmorbehavior("IncreaseLifeArmorP1",1);
+	libcrtx_toolkit_setarmorbehavior("IncreaseLifeArmor1",2);
+	libcrtx_toolkit_setarmorbehavior("IncreaseLifeArmor10",3);
+	libcrtx_toolkit_setarmorbehavior("IncreaseShieldArmorP1",4);
+	libcrtx_toolkit_setarmorbehavior("IncreaseShieldArmor1",5);
+	libcrtx_toolkit_setarmorbehavior("IncreaseShieldArmor10",6);
+	libcrtx_toolkit_setarmorbehavior("DecreaseLifeArmorP1",7);
+	libcrtx_toolkit_setarmorbehavior("DecreaseLifeArmor1",8);
+	libcrtx_toolkit_setarmorbehavior("DecreaseLifeArmor10",9);
+	libcrtx_toolkit_setarmorbehavior("DecreaseShieldArmorP1",10);
+	libcrtx_toolkit_setarmorbehavior("DecreaseShieldArmor1",11);
+	libcrtx_toolkit_setarmorbehavior("DecreaseShieldArmor10",12);
+
+	libcrtx_toolkit_setperiodbehavior("SetAttackSpeed0P9", 0);
+	libcrtx_toolkit_setperiodbehavior("SetAttackSpeed1P1", 1);
+}
+
+void libcrtx_toolkit_default_initrestrictedunits()
+{
+	libcrtx_toolkit_addrestrictedunit("Spawner");
+	libcrtx_toolkit_addrestrictedunit("nukenoodle");
+}
+

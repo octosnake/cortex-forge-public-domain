@@ -1,0 +1,148 @@
+// Cortex SC2 Roleplaying Engine
+// Copyright (C) 2009-2011 <http://www.cortexrp.com/>
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; version 2 of the License.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+const string libcrtx_toolkit_prefix_weapon = "toolkit_weapon_";
+const string libcrtx_toolkit_prefix_restrictedunit = "toolkit_restrictedunit_";
+const string libcrtx_toolkit_prefix_restrictedbehavior = "toolkit_restrictedbehavior_";
+const string libcrtx_toolkit_prefix_restrictedeffect = "toolkit_restrictedeffect_";
+
+static string libcrtx_toolkit_levelbehavior = "";
+static string libcrtx_toolkit_experiencegiverbehavior = "";
+static string[10] libcrtx_toolkit_damagebehavior;
+static string[6] libcrtx_toolkit_rangebehavior;
+static string[13] libcrtx_toolkit_armorbehavior;
+static string[2] libcrtx_toolkit_periodbehavior;
+static int libcrtx_toolkit_maxlevel = 10;
+
+void libcrtx_toolkit_addrestrictedbehavior(string restrictedBehavior)
+{
+	string storeAs = StringCase(libcrtx_toolkit_prefix_restrictedbehavior + restrictedBehavior, false);
+	DataTableSetBool(true, storeAs, true );
+}
+
+bool libcrtx_toolkit_isrestrictedbehavior(string behName)
+{
+	string lookup = StringCase( libcrtx_toolkit_prefix_restrictedbehavior + behName, false );
+	return DataTableGetBool(true, lookup);
+}
+
+void libcrtx_toolkit_addrestrictedeffect(string restrictedEffect)
+{
+	string storeAs = StringCase(libcrtx_toolkit_prefix_restrictedeffect + restrictedEffect, false);
+	DataTableSetBool(true, storeAs, true );
+}
+
+bool libcrtx_toolkit_isrestrictedeffect(string effName)
+{
+	string lookup = StringCase( libcrtx_toolkit_prefix_restrictedeffect + effName, false );
+	return DataTableGetBool(true, lookup);
+}
+
+void libcrtx_toolkit_addrestrictedunit(string restrictedUnit)
+{
+	string storeAs = StringCase(libcrtx_toolkit_prefix_restrictedunit + UnitTypeFromString(restrictedUnit), false);
+	DataTableSetBool(true, storeAs, true );
+}
+
+bool libcrtx_toolkit_isrestrictedunit(string unitName)
+{
+	string lookup = StringCase( libcrtx_toolkit_prefix_restrictedunit + unitName, false );
+	return DataTableGetBool(true, lookup);
+}
+
+void libcrtx_toolkit_addweapon(string toolKitName, string blizzardName)
+{
+	string storeAs = StringCase(libcrtx_toolkit_prefix_weapon + toolKitName, false);
+	DataTableSetString( true, storeAs, blizzardName );
+}
+
+string libcrtx_toolkit_getweapon(string toolKitName)
+{
+	string lookup = StringCase(libcrtx_toolkit_prefix_weapon + toolKitName, false);
+	string blizzardName = DataTableGetString(true, lookup);
+	if (!blizzardName) {
+		return toolKitName;
+	}
+	return blizzardName;
+}
+
+void libcrtx_toolkit_setlevelbehavior(string beh)
+{
+	libcrtx_toolkit_levelbehavior = beh;
+}
+
+string libcrtx_toolkit_getlevelbehavior()
+{
+	return libcrtx_toolkit_levelbehavior;
+}
+
+void libcrtx_toolkit_setexperiencegiverbehavior(string beh)
+{
+	libcrtx_toolkit_experiencegiverbehavior = beh;
+}
+
+string libcrtx_toolkit_getexperiencegiverbehavior()
+{
+	return libcrtx_toolkit_experiencegiverbehavior;
+}
+
+// Damage behaviors are now an array with arbitrary index positions 
+// for behaviors giving different amounts of bonus. See UnitToolkit.galaxy. -F
+void libcrtx_toolkit_setdamagebehavior(string beh, int pfeh)
+{
+	libcrtx_toolkit_damagebehavior[pfeh] = beh;
+}
+
+string libcrtx_toolkit_getdamagebehavior(int pfeh)
+{
+	return libcrtx_toolkit_damagebehavior[pfeh];
+}
+
+void libcrtx_toolkit_setrangebehavior(string inBehavior, int index)
+{
+	libcrtx_toolkit_rangebehavior[index] = inBehavior;
+}
+
+string libcrtx_toolkit_getrangebehavior(int index)
+{
+	return libcrtx_toolkit_rangebehavior[index];
+}
+
+void libcrtx_toolkit_setarmorbehavior(string inBehavior, int index)
+{
+	libcrtx_toolkit_armorbehavior[index] = inBehavior;
+}
+
+string libcrtx_toolkit_getarmorbehavior(int index)
+{
+	return libcrtx_toolkit_armorbehavior[index];
+}
+
+void libcrtx_toolkit_setperiodbehavior(string inBehavior, int index)
+{
+	libcrtx_toolkit_periodbehavior[index] = inBehavior;
+}
+
+string libcrtx_toolkit_getperiodbehavior(int index)
+{
+	return libcrtx_toolkit_periodbehavior[index];
+}
+
+void libcrtx_toolkit_setmaxlevel(int i)
+{
+    libcrtx_toolkit_maxlevel = i;
+}
+
+int libcrtx_toolkit_getmaxlevel()
+{
+    return libcrtx_toolkit_maxlevel;
+}
